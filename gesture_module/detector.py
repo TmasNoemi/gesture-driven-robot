@@ -15,6 +15,7 @@ from mediapipe.tasks.python.vision import (
 )
 
 from shared.commands import Command
+from gesture_module.sender import GestureSender
 
 _MODEL_PATH = Path(__file__).parent / "hand_landmarker.task"
 _MODEL_URL = (
@@ -247,12 +248,16 @@ class GestureDetector:
 
 
 def run(camera_index: int = 0) -> None:
-    """Open the webcam, show confirmed gesture on screen. Press Q to quit."""
+    """Open the webcam, detect gestures and publish them via ROSBridge.
+
+    Connects to ROSBridge on startup (non-blocking — reconnects automatically
+    in the background if the server is not yet reachable). Press Q to quit.
+    """
     cap = cv2.VideoCapture(camera_index)
     if not cap.isOpened():
         raise RuntimeError(f"Cannot open camera {camera_index}")
 
-    with GestureDetector() as detector:
+    with GestureDetector() as detector, GestureSender() as sender:
         while True:
             ret, frame = cap.read()
             if not ret:
@@ -260,6 +265,9 @@ def run(camera_index: int = 0) -> None:
 
             frame = cv2.flip(frame, 1)
             command = detector.detect(frame)
+
+            if command is not None:
+                sender.send(command)
 
             label = command.value if command else "—"
             cv2.putText(

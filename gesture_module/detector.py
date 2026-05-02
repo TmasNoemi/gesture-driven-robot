@@ -141,19 +141,15 @@ def _classify_left(lm) -> Command | None:
 
 
 def _classify_right_static(lm) -> Command | None:
-    """STOP_ROTATION (open hand, immediate) or pointing direction for right hand."""
+    """Pointing direction for right hand (index only extended)."""
     palm_size = _dist3(lm[0], lm[9])
     if palm_size < 1e-6:
         return None
 
-    thumb  = _extended(lm, 4,  2,  palm_size)
     index  = _extended(lm, 8,  5,  palm_size)
     middle = _extended(lm, 12, 9,  palm_size)
     ring   = _extended(lm, 16, 13, palm_size)
     pinky  = _extended(lm, 20, 17, palm_size)
-
-    if thumb and index and middle and ring and pinky:
-        return Command.STOP_ROTATION
 
     if not (index and not middle and not ring and not pinky):
         return None
@@ -284,12 +280,9 @@ class GestureDetector:
 
             self._right_history.append(right_raw)
 
-            if right_raw == Command.STOP_ROTATION:      # immediate
-                right_cmd = Command.STOP_ROTATION
-            else:
-                n = ROTATION_SMOOTHING_FRAMES if right_raw in _ROTATION_COMMANDS else SMOOTHING_FRAMES
-                recent = list(self._right_history)[-n:]
-                right_cmd = recent[0] if len(recent) == n and len(set(recent)) == 1 else None
+            n = ROTATION_SMOOTHING_FRAMES if right_raw in _ROTATION_COMMANDS else SMOOTHING_FRAMES
+            recent = list(self._right_history)[-n:]
+            right_cmd = recent[0] if len(recent) == n and len(set(recent)) == 1 else None
 
         return left_cmd, right_cmd
 

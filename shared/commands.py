@@ -10,10 +10,6 @@ class Command(Enum):
     MOVE_BACKWARD = "MOVE_BACKWARD"
     ROTATE_RIGHT = "ROTATE_RIGHT"
     ROTATE_LEFT = "ROTATE_LEFT"
-    STOP_ROTATION = "STOP_ROTATION"
-    # Legacy
-    MOVE_RIGHT = "MOVE_RIGHT"
-    MOVE_LEFT = "MOVE_LEFT"
 
 
 TOPIC_MOVEMENT = "/gesture_movement"

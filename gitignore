@@ -1,0 +1,41 @@
+# ── Python ────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.env
+.venv
+env/
+venv/
+
+# ── ROS2 build artifacts ───────────────────────────────────────────────────
+robot_module/ros2_ws/build/
+robot_module/ros2_ws/install/
+robot_module/ros2_ws/log/
+
+# ── Gazebo ─────────────────────────────────────────────────────────────────
+*.bag
+*.db3
+
+# ── VS Code ────────────────────────────────────────────────────────────────
+.vscode/
+*.code-workspace
+
+# ── macOS ──────────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ── Linux ──────────────────────────────────────────────────────────────────
+*~
+.nfs*
+
+# ── MediaPipe / OpenCV cache ───────────────────────────────────────────────
+gesture_module/__pycache__/
+*.tflite

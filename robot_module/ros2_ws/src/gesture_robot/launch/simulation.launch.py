@@ -1,4 +1,5 @@
 import os
+import xacro
 from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument
 from launch.launch_description_sources import PythonLaunchDescriptionSource
@@ -31,13 +32,13 @@ def generate_launch_description():
 
     # ── Robot State Publisher (loads URDF) ─────────────────────────────────
     urdf_path = os.path.join(pkg, 'urdf', 'robot.urdf.xacro')
+    robot_description = xacro.process_file(urdf_path).toxml()
     robot_state_publisher = Node(
-        package='robot_state_publisher',
-        executable='robot_state_publisher',
-        name='robot_state_publisher',
-        parameters=[{'robot_description': open(urdf_path).read()}]
-        # Note: xacro processing will be added later
-    )
+    package='robot_state_publisher',
+    executable='robot_state_publisher',
+    name='robot_state_publisher',
+    parameters=[{'robot_description': robot_description}]
+)
 
     # ── Spawn robot in Gazebo ──────────────────────────────────────────────
     spawn_robot = Node(
@@ -48,7 +49,7 @@ def generate_launch_description():
             '-topic', 'robot_description',
             '-x', '0.0',
             '-y', '0.0',
-            '-z', '0.1',
+            '-z', '0.5',  # alzato da 0.1 a 0.5
         ],
         output='screen'
     )

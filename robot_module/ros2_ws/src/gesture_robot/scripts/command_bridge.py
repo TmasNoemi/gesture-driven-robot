@@ -2,12 +2,12 @@
 """
 command_bridge.py
 
-Subscribes al topic /gesture_command (std_msgs/String) pubblicato da rosbridge
+Subscribes al topic /gesture_cmd (std_msgs/String) pubblicato da rosbridge
 quando Noemi manda un Command enum dal suo script Python su macOS.
 Converte il comando in geometry_msgs/Twist e pubblica su /cmd_vel.
 
 Flusso:
-  Noemi (macOS) → WebSocket → rosbridge → /gesture_command → qui → /cmd_vel → Gazebo
+  Noemi (macOS) → WebSocket → rosbridge → /gesture_cmd → qui → /cmd_vel → Gazebo
 """
 
 import rclpy
@@ -35,7 +35,7 @@ class CommandBridge(Node):
         # Subscriber: riceve i comandi stringa da rosbridge
         self.subscription = self.create_subscription(
             String,
-            '/gesture_command',
+            '/gesture_cmd',
             self.command_callback,
             10
         )
@@ -43,7 +43,7 @@ class CommandBridge(Node):
         # Publisher: manda i comandi di movimento al robot in Gazebo
         self.publisher = self.create_publisher(Twist, '/cmd_vel', 10)
 
-        self.get_logger().info('CommandBridge avviato. In ascolto su /gesture_command...')
+        self.get_logger().info('CommandBridge avviato. In ascolto su /gesture_cmd...')
 
     def command_callback(self, msg: String):
         command = msg.data.strip().upper()

@@ -22,7 +22,7 @@ _MODEL_URL = (
     "hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
 )
 
-# ── Configurable thresholds ───────────────────────────────────────────────────
+# ── Static gesture thresholds ─────────────────────────────────────────────────
 
 # Min (TIP–MCP 3D distance) / palm_size to consider a finger extended.
 FINGER_EXTENSION_RATIO: float = 0.30
@@ -30,16 +30,30 @@ FINGER_EXTENSION_RATIO: float = 0.30
 # Min magnitude of the 3D MCP(5)→TIP(8) vector to accept a pointing gesture.
 POINTING_MIN_MAGNITUDE: float = 0.08
 
-# Min value of the dominant component (nx or ny) of the *normalized* 3D
-# direction vector. Rejects gestures where the finger points mostly into/out
-# of the screen (large z) with only a small x/y component.
+# Min value of the dominant nx/ny component of the normalized 3D direction
+# vector. Rejects gestures where the finger points mostly into/out of screen.
 DOMINANT_THRESHOLD: float = 0.40
 
-# Number of consecutive frames that must show the same gesture before it is
-# confirmed and returned. Eliminates single-frame flickers.
+# Consecutive identical frames required to confirm a static gesture.
 SMOOTHING_FRAMES: int = 5
 
+# ── Fist / rotation thresholds ────────────────────────────────────────────────
+
+# Max (TIP–MCP 3D distance) / palm_size for a finger to count as "closed".
+# Slightly above FINGER_EXTENSION_RATIO so partially-curled fingers qualify.
+FIST_RATIO: float = 0.40
+
+# Min signed angle (radians) from the captured neutral to emit a rotation.
+# ~20° dead zone prevents drift from triggering commands.
+ROTATION_TILT_THRESHOLD: float = 0.35
+
+# Consecutive identical frames required to confirm a rotation command.
+# Kept short (4) so the robot reacts quickly to a held tilt.
+ROTATION_SMOOTHING_FRAMES: int = 4
+
 # ─────────────────────────────────────────────────────────────────────────────
+
+_ROTATION_COMMANDS = {Command.ROTATE_RIGHT, Command.ROTATE_LEFT}
 
 
 def _ensure_model() -> None:
@@ -50,7 +64,6 @@ def _ensure_model() -> None:
 
 
 def _dist3(a, b) -> float:
-    """3D Euclidean distance between two landmarks."""
     return math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2 + (a.z - b.z) ** 2)
 
 
@@ -58,9 +71,56 @@ def _extended(lm, tip: int, mcp: int, palm_size: float) -> bool:
     return _dist3(lm[tip], lm[mcp]) / palm_size > FINGER_EXTENSION_RATIO
 
 
+# ── Fist detection ────────────────────────────────────────────────────────────
+
+def _is_fist(lm) -> bool:
+    """Return True when all five fingers are closed (closed fist).
+
+    Uses TIP–MCP distance normalised by palm_size. Works regardless of
+    hand orientation or wrist angle — no anatomy-specific tuning needed.
+    """
+    palm_size = _dist3(lm[0], lm[9])
+    if palm_size < 1e-6:
+        return False
+    pairs = [(8, 5), (12, 9), (16, 13), (20, 17)]   # (tip, mcp) per finger
+    fingers_closed = all(
+        _dist3(lm[tip], lm[mcp]) / palm_size < FIST_RATIO
+        for tip, mcp in pairs
+    )
+    thumb_tucked = _dist3(lm[4], lm[5]) / palm_size < FIST_RATIO
+    return fingers_closed and thumb_tucked
+
+
+# ── Wrist-tilt rotation detection ────────────────────────────────────────────
+
+def _knuckle_axis_angle(lm) -> float:
+    """Angle (radians) of the index-MCP → pinky-MCP axis in screen coords."""
+    return math.atan2(lm[17].y - lm[5].y, lm[17].x - lm[5].x)
+
+
+def _classify_tilt(current: float, neutral: float) -> Command | None:
+    """Compare current knuckle-axis angle against the captured neutral.
+
+    Uses atan2(sin, cos) to compute the shortest signed difference so the
+    ±π discontinuity is handled correctly.
+
+    In y-down screen coordinates:
+        diff > 0  →  clockwise tilt from neutral  →  ROTATE_RIGHT
+        diff < 0  →  counter-clockwise tilt       →  ROTATE_LEFT
+    """
+    diff = math.atan2(math.sin(current - neutral), math.cos(current - neutral))
+    if diff > ROTATION_TILT_THRESHOLD:
+        return Command.ROTATE_RIGHT
+    if diff < -ROTATION_TILT_THRESHOLD:
+        return Command.ROTATE_LEFT
+    return None
+
+
+# ── Static gesture classification ────────────────────────────────────────────
+
 def _classify(lm) -> Command | None:
-    """Classify a hand gesture using 3D landmark coordinates."""
-    palm_size = _dist3(lm[0], lm[9])   # wrist(0) → middle-finger MCP(9)
+    """Classify STOP and pointing gestures from 3D landmarks."""
+    palm_size = _dist3(lm[0], lm[9])
     if palm_size < 1e-6:
         return None
 
@@ -70,15 +130,12 @@ def _classify(lm) -> Command | None:
     ring   = _extended(lm, 16, 13, palm_size)
     pinky  = _extended(lm, 20, 17, palm_size)
 
-    # ── STOP: all five fingertips far from their MCP joint ────────────────────
     if thumb and index and middle and ring and pinky:
         return Command.STOP
 
-    # ── Pointing: only index finger extended ─────────────────────────────────
     if not (index and not middle and not ring and not pinky):
         return None
 
-    # 3D direction vector: MCP(5) → TIP(8)
     dx = lm[8].x - lm[5].x
     dy = lm[8].y - lm[5].y
     dz = lm[8].z - lm[5].z
@@ -87,22 +144,20 @@ def _classify(lm) -> Command | None:
     if magnitude < POINTING_MIN_MAGNITUDE:
         return None
 
-    # Normalize to unit vector and classify by dominant screen component.
-    # The frame is already flipped (cv2.flip), so screen-x directly maps to
-    # the intended direction for any hand and any palm orientation — no further
-    # axis correction is needed.
     nx = dx / magnitude
     ny = dy / magnitude
 
-    if abs(ny) >= abs(nx):                      # vertical dominates
+    if abs(ny) >= abs(nx):
         if abs(ny) < DOMINANT_THRESHOLD:
             return None
         return Command.MOVE_FORWARD if ny < 0 else Command.MOVE_BACKWARD
-    else:                                       # horizontal dominates
+    else:
         if abs(nx) < DOMINANT_THRESHOLD:
             return None
         return Command.MOVE_RIGHT if nx > 0 else Command.MOVE_LEFT
 
+
+# ── Drawing ───────────────────────────────────────────────────────────────────
 
 def _draw_landmarks(frame, landmarks) -> None:
     h, w = frame.shape[:2]
@@ -113,8 +168,10 @@ def _draw_landmarks(frame, landmarks) -> None:
         cv2.circle(frame, pt, 4, (255, 255, 255), -1)
 
 
+# ── Detector class ────────────────────────────────────────────────────────────
+
 class GestureDetector:
-    """Detects hand gestures from BGR frames using MediaPipe HandLandmarker."""
+    """Detects static and dynamic hand gestures from BGR frames."""
 
     def __init__(
         self,
@@ -131,14 +188,20 @@ class GestureDetector:
         )
         self._landmarker = HandLandmarker.create_from_options(options)
         self._start_ms = int(time.time() * 1000)
-        self._history: deque[Command | None] = deque(maxlen=SMOOTHING_FRAMES)
+
+        _maxlen = max(SMOOTHING_FRAMES, ROTATION_SMOOTHING_FRAMES)
+        self._history: deque[Command | None] = deque(maxlen=_maxlen)
+
+        # Knuckle-axis angle (radians) captured on the first fist frame.
+        # None when no fist is currently held.
+        self._neutral_angle: float | None = None
 
     def detect(self, bgr_frame) -> Command | None:
-        """
-        Process a single BGR frame and return the confirmed Command, or None.
+        """Process one BGR frame and return the confirmed Command, or None.
 
-        A command is confirmed only when the last SMOOTHING_FRAMES frames all
-        agree on the same gesture. This suppresses single-frame flickers.
+        Static gestures require SMOOTHING_FRAMES identical frames.
+        Rotation gestures require ROTATION_SMOOTHING_FRAMES identical frames
+        on top of the wrist-roll angle accumulation.
         """
         rgb = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
@@ -147,18 +210,30 @@ class GestureDetector:
         result = self._landmarker.detect_for_video(mp_image, timestamp_ms)
 
         if not result.hand_landmarks:
+            self._neutral_angle = None
             self._history.append(None)
             return None
 
         landmarks = result.hand_landmarks[0]
         _draw_landmarks(bgr_frame, landmarks)
 
-        raw = _classify(landmarks)
+        if _is_fist(landmarks):
+            current = _knuckle_axis_angle(landmarks)
+            if self._neutral_angle is None:     # first fist frame: capture neutral
+                self._neutral_angle = current
+                raw = None
+            else:
+                raw = _classify_tilt(current, self._neutral_angle)
+        else:
+            self._neutral_angle = None          # fist released: reset neutral
+            raw = _classify(landmarks)
+
         self._history.append(raw)
 
-        # Confirm only when all recent frames agree
-        if len(self._history) == SMOOTHING_FRAMES and len(set(self._history)) == 1:
-            return self._history[0]
+        n = ROTATION_SMOOTHING_FRAMES if raw in _ROTATION_COMMANDS else SMOOTHING_FRAMES
+        recent = list(self._history)[-n:]
+        if len(recent) == n and len(set(recent)) == 1:
+            return recent[0]
         return None
 
     def close(self) -> None:
@@ -172,7 +247,7 @@ class GestureDetector:
 
 
 def run(camera_index: int = 0) -> None:
-    """Open the webcam, show confirmed gesture label on screen. Press Q to quit."""
+    """Open the webcam, show confirmed gesture on screen. Press Q to quit."""
     cap = cv2.VideoCapture(camera_index)
     if not cap.isOpened():
         raise RuntimeError(f"Cannot open camera {camera_index}")

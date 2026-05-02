@@ -3,11 +3,8 @@
 command_bridge.py
 
 Subscribes al topic /gesture_cmd (std_msgs/String) pubblicato da rosbridge
-quando Noemi manda un Command enum dal suo script Python su macOS.
-Converte il comando in geometry_msgs/Twist e pubblica su /cmd_vel.
+Quando viene lanciato un command enum da sender.py converte il comando in geometry_msgs/Twist e pubblica su /cmd_vel.
 
-Flusso:
-  Noemi (macOS) → WebSocket → rosbridge → /gesture_cmd → qui → /cmd_vel → Gazebo
 """
 
 import rclpy
@@ -27,7 +24,6 @@ COMMAND_MAP = {
     'MOVE_RIGHT':    {'linear_x':  0.0, 'angular_z': -0.5},  # legacy, stesso di ROTATE_RIGHT
     'STOP':          {'linear_x':  0.0, 'angular_z':  0.0},
 }
-
 
 class CommandBridge(Node):
 

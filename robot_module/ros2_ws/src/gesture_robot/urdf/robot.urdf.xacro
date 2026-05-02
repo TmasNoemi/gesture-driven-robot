@@ -8,13 +8,26 @@
   <xacro:property name="wheel_radius" value="0.05"/>
   <xacro:property name="wheel_width"  value="0.04"/>
 
-  <!-- ── Materiali ──────────────────────────────────────────────────────── -->
-  <material name="blue">
-    <color rgba="0.0 0.0 0.8 1.0"/>
+<!-- Materiale -->
+  <material name="red">
+    <color rgba="0.8 0.0 0.0 1.0"/>
   </material>
-  <material name="black">
-    <color rgba="0.0 0.0 0.0 1.0"/>
-  </material>
+
+  <!-- Naso frontale -->
+  <link name="front_marker">
+    <visual>
+      <geometry>
+        <box size="0.05 0.1 0.05"/>
+      </geometry>
+      <material name="red"/>
+    </visual>
+  </link>
+
+  <joint name="front_marker_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="front_marker"/>
+    <origin xyz="${base_length/2} 0 ${base_height/2}" rpy="0 0 0"/>
+  </joint>
 
   <!-- ── Base link ──────────────────────────────────────────────────────── -->
   <link name="base_link">
@@ -104,7 +117,7 @@
     <origin xyz="0 ${-(base_width/2 + wheel_width/2)} ${-base_height/2}" rpy="-1.5707 0 0"/>
     <axis xyz="0 0 1"/>
   </joint>
-  
+
   <!-- ── Ruotina anteriore (caster) ─────────────────────────────────────── -->
   <link name="caster_wheel">
     <visual>
@@ -156,5 +169,9 @@
       <robot_base_frame>base_link</robot_base_frame>
     </plugin>
   </gazebo>
+
+<gazebo reference="front_marker">
+  <material>Gazebo/Red</material>
+</gazebo>
 
 </robot>

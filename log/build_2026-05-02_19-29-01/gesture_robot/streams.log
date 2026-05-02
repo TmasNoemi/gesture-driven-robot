@@ -1,0 +1,27 @@
+[0.012s] Invoking command in '/home/carmelo/Documenti/gesture-driven-robot/build/gesture_robot': CMAKE_PREFIX_PATH=/home/carmelo/Documenti/gesture-driven-robot/install/gesture_robot:/home/carmelo/Documenti/gesture-driven-robot/robot_module/ros2_ws/install/gesture_robot:/opt/ros/humble:/home/carmelo/catkin_ws/devel /usr/bin/cmake --build /home/carmelo/Documenti/gesture-driven-robot/build/gesture_robot -- -j8 -l8
+[0.060s] Invoked command in '/home/carmelo/Documenti/gesture-driven-robot/build/gesture_robot' returned '0': CMAKE_PREFIX_PATH=/home/carmelo/Documenti/gesture-driven-robot/install/gesture_robot:/home/carmelo/Documenti/gesture-driven-robot/robot_module/ros2_ws/install/gesture_robot:/opt/ros/humble:/home/carmelo/catkin_ws/devel /usr/bin/cmake --build /home/carmelo/Documenti/gesture-driven-robot/build/gesture_robot -- -j8 -l8
+[0.073s] Invoking command in '/home/carmelo/Documenti/gesture-driven-robot/build/gesture_robot': CMAKE_PREFIX_PATH=/home/carmelo/Documenti/gesture-driven-robot/install/gesture_robot:/home/carmelo/Documenti/gesture-driven-robot/robot_module/ros2_ws/install/gesture_robot:/opt/ros/humble:/home/carmelo/catkin_ws/devel /usr/bin/cmake --install /home/carmelo/Documenti/gesture-driven-robot/build/gesture_robot
+[0.082s] -- Install configuration: ""
+[0.082s] -- Up-to-date: /home/carmelo/Documenti/gesture-driven-robot/install/gesture_robot/lib/gesture_robot/command_bridge.py
+[0.082s] -- Up-to-date: /home/carmelo/Documenti/gesture-driven-robot/install/gesture_robot/share/gesture_robot/launch
+[0.082s] -- Up-to-date: /home/carmelo/Documenti/gesture-driven-robot/install/gesture_robot/share/gesture_robot/launch/simulation.launch.py
+[0.083s] -- Up-to-date: /home/carmelo/Documenti/gesture-driven-robot/install/gesture_robot/share/gesture_robot/urdf
+[0.083s] -- Installing: /home/carmelo/Documenti/gesture-driven-robot/install/gesture_robot/share/gesture_robot/urdf/robot.urdf.xacro
+[0.083s] -- Up-to-date: /home/carmelo/Documenti/gesture-driven-robot/install/gesture_robot/share/gesture_robot/worlds
+[0.083s] -- Up-to-date: /home/carmelo/Documenti/gesture-driven-robot/install/gesture_robot/share/gesture_robot/worlds/simple_world.sdf
+[0.083s] -- Up-to-date: /home/carmelo/Documenti/gesture-driven-robot/install/gesture_robot/share/ament_index/resource_index/package_run_dependencies/gesture_robot
+[0.084s] -- Up-to-date: /home/carmelo/Documenti/gesture-driven-robot/install/gesture_robot/share/ament_index/resource_index/parent_prefix_path/gesture_robot
+[0.084s] -- Up-to-date: /home/carmelo/Documenti/gesture-driven-robot/install/gesture_robot/share/gesture_robot/environment/ament_prefix_path.sh
+[0.084s] -- Up-to-date: /home/carmelo/Documenti/gesture-driven-robot/install/gesture_robot/share/gesture_robot/environment/ament_prefix_path.dsv
+[0.084s] -- Up-to-date: /home/carmelo/Documenti/gesture-driven-robot/install/gesture_robot/share/gesture_robot/environment/path.sh
+[0.084s] -- Up-to-date: /home/carmelo/Documenti/gesture-driven-robot/install/gesture_robot/share/gesture_robot/environment/path.dsv
+[0.084s] -- Up-to-date: /home/carmelo/Documenti/gesture-driven-robot/install/gesture_robot/share/gesture_robot/local_setup.bash
+[0.085s] -- Up-to-date: /home/carmelo/Documenti/gesture-driven-robot/install/gesture_robot/share/gesture_robot/local_setup.sh
+[0.086s] -- Up-to-date: /home/carmelo/Documenti/gesture-driven-robot/install/gesture_robot/share/gesture_robot/local_setup.zsh
+[0.086s] -- Up-to-date: /home/carmelo/Documenti/gesture-driven-robot/install/gesture_robot/share/gesture_robot/local_setup.dsv
+[0.086s] -- Up-to-date: /home/carmelo/Documenti/gesture-driven-robot/install/gesture_robot/share/gesture_robot/package.dsv
+[0.086s] -- Up-to-date: /home/carmelo/Documenti/gesture-driven-robot/install/gesture_robot/share/ament_index/resource_index/packages/gesture_robot
+[0.087s] -- Up-to-date: /home/carmelo/Documenti/gesture-driven-robot/install/gesture_robot/share/gesture_robot/cmake/gesture_robotConfig.cmake
+[0.087s] -- Up-to-date: /home/carmelo/Documenti/gesture-driven-robot/install/gesture_robot/share/gesture_robot/cmake/gesture_robotConfig-version.cmake
+[0.087s] -- Up-to-date: /home/carmelo/Documenti/gesture-driven-robot/install/gesture_robot/share/gesture_robot/package.xml
+[0.088s] Invoked command in '/home/carmelo/Documenti/gesture-driven-robot/build/gesture_robot' returned '0': CMAKE_PREFIX_PATH=/home/carmelo/Documenti/gesture-driven-robot/install/gesture_robot:/home/carmelo/Documenti/gesture-driven-robot/robot_module/ros2_ws/install/gesture_robot:/opt/ros/humble:/home/carmelo/catkin_ws/devel /usr/bin/cmake --install /home/carmelo/Documenti/gesture-driven-robot/build/gesture_robot

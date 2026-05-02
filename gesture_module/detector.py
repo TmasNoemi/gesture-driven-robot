@@ -119,8 +119,8 @@ def _classify_tilt(current: float, neutral: float) -> Command | None:
 
 # ── Static gesture classification ────────────────────────────────────────────
 
-def _classify(lm) -> Command | None:
-    """Classify STOP and pointing gestures from 3D landmarks."""
+def _classify_left(lm) -> Command | None:
+    """STOP (open hand, immediate) or MOVE (fist) for left hand."""
     palm_size = _dist3(lm[0], lm[9])
     if palm_size < 1e-6:
         return None
@@ -134,6 +134,27 @@ def _classify(lm) -> Command | None:
     if thumb and index and middle and ring and pinky:
         return Command.STOP
 
+    if _is_fist(lm):
+        return Command.MOVE
+
+    return None
+
+
+def _classify_right_static(lm) -> Command | None:
+    """STOP_ROTATION (open hand, immediate) or pointing direction for right hand."""
+    palm_size = _dist3(lm[0], lm[9])
+    if palm_size < 1e-6:
+        return None
+
+    thumb  = _extended(lm, 4,  2,  palm_size)
+    index  = _extended(lm, 8,  5,  palm_size)
+    middle = _extended(lm, 12, 9,  palm_size)
+    ring   = _extended(lm, 16, 13, palm_size)
+    pinky  = _extended(lm, 20, 17, palm_size)
+
+    if thumb and index and middle and ring and pinky:
+        return Command.STOP_ROTATION
+
     if not (index and not middle and not ring and not pinky):
         return None
 
@@ -141,21 +162,19 @@ def _classify(lm) -> Command | None:
     dy = lm[8].y - lm[5].y
     dz = lm[8].z - lm[5].z
 
+    # Invert x when palm faces away from camera so direction is frame-independent.
+    if lm[9].z > lm[0].z:
+        dx = -dx
+
     magnitude = math.sqrt(dx ** 2 + dy ** 2 + dz ** 2)
     if magnitude < POINTING_MIN_MAGNITUDE:
         return None
 
-    nx = dx / magnitude
     ny = dy / magnitude
+    if abs(ny) < DOMINANT_THRESHOLD:
+        return None
 
-    if abs(ny) >= abs(nx):
-        if abs(ny) < DOMINANT_THRESHOLD:
-            return None
-        return Command.MOVE_FORWARD if ny < 0 else Command.MOVE_BACKWARD
-    else:
-        if abs(nx) < DOMINANT_THRESHOLD:
-            return None
-        return Command.MOVE_RIGHT if nx > 0 else Command.MOVE_LEFT
+    return Command.MOVE_FORWARD if ny < 0 else Command.MOVE_BACKWARD
 
 
 # ── Drawing ───────────────────────────────────────────────────────────────────
@@ -172,7 +191,12 @@ def _draw_landmarks(frame, landmarks) -> None:
 # ── Detector class ────────────────────────────────────────────────────────────
 
 class GestureDetector:
-    """Detects static and dynamic hand gestures from BGR frames."""
+    """Detects static and dynamic hand gestures from BGR frames.
+
+    Tracks both hands simultaneously and returns a (left, right) command tuple.
+    Left hand controls movement (MOVE / STOP).
+    Right hand controls rotation (MOVE_FORWARD / MOVE_BACKWARD / ROTATE_* / STOP_ROTATION).
+    """
 
     def __init__(
         self,
@@ -183,7 +207,7 @@ class GestureDetector:
         options = HandLandmarkerOptions(
             base_options=BaseOptions(model_asset_path=str(_MODEL_PATH)),
             running_mode=RunningMode.VIDEO,
-            num_hands=1,
+            num_hands=2,
             min_hand_detection_confidence=min_detection_confidence,
             min_tracking_confidence=min_tracking_confidence,
         )
@@ -191,18 +215,23 @@ class GestureDetector:
         self._start_ms = int(time.time() * 1000)
 
         _maxlen = max(SMOOTHING_FRAMES, ROTATION_SMOOTHING_FRAMES)
-        self._history: deque[Command | None] = deque(maxlen=_maxlen)
+        self._left_history:  deque[Command | None] = deque(maxlen=SMOOTHING_FRAMES)
+        self._right_history: deque[Command | None] = deque(maxlen=_maxlen)
 
-        # Knuckle-axis angle (radians) captured on the first fist frame.
-        # None when no fist is currently held.
-        self._neutral_angle: float | None = None
+        # Knuckle-axis angle (radians) captured on the first right-hand fist frame.
+        self._right_neutral_angle: float | None = None
 
-    def detect(self, bgr_frame) -> Command | None:
-        """Process one BGR frame and return the confirmed Command, or None.
+    def detect(self, bgr_frame) -> tuple[Command | None, Command | None]:
+        """Process one BGR frame; return (left_cmd, right_cmd).
 
-        Static gestures require SMOOTHING_FRAMES identical frames.
-        Rotation gestures require ROTATION_SMOOTHING_FRAMES identical frames
-        on top of the wrist-roll angle accumulation.
+        STOP and STOP_ROTATION are emitted immediately (no smoothing).
+        All other gestures require SMOOTHING_FRAMES (or ROTATION_SMOOTHING_FRAMES
+        for rotation) consecutive identical frames before being confirmed.
+
+        NOTE: the frame must already be flipped (cv2.flip) before calling this,
+        so that MediaPipe handedness labels map correctly to the user's hands.
+        After a horizontal flip, MediaPipe reports "Left" for the user's right
+        hand and "Right" for the user's left hand — we invert accordingly.
         """
         rgb = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
@@ -210,32 +239,59 @@ class GestureDetector:
 
         result = self._landmarker.detect_for_video(mp_image, timestamp_ms)
 
-        if not result.hand_landmarks:
-            self._neutral_angle = None
-            self._history.append(None)
-            return None
+        # ── Separate landmarks by hand ────────────────────────────────────────
+        left_lm = None
+        right_lm = None
+        for i, hand_lm in enumerate(result.hand_landmarks):
+            _draw_landmarks(bgr_frame, hand_lm)
+            if i < len(result.handedness):
+                label = result.handedness[i][0].category_name
+                # After cv2.flip, "Left" in the image = user's right hand.
+                if label == "Left":
+                    right_lm = hand_lm
+                else:
+                    left_lm = hand_lm
 
-        landmarks = result.hand_landmarks[0]
-        _draw_landmarks(bgr_frame, landmarks)
-
-        if _is_fist(landmarks):
-            current = _knuckle_axis_angle(landmarks)
-            if self._neutral_angle is None:     # first fist frame: capture neutral
-                self._neutral_angle = current
-                raw = None
-            else:
-                raw = _classify_tilt(current, self._neutral_angle)
+        # ── Left hand: STOP (immediate) or MOVE ──────────────────────────────
+        if left_lm is None:
+            self._left_history.append(None)
+            left_cmd = None
         else:
-            self._neutral_angle = None          # fist released: reset neutral
-            raw = _classify(landmarks)
+            left_raw = _classify_left(left_lm)
+            self._left_history.append(left_raw)
+            if left_raw == Command.STOP:        # immediate — no smoothing needed
+                left_cmd = Command.STOP
+            else:
+                recent = list(self._left_history)[-SMOOTHING_FRAMES:]
+                left_cmd = recent[0] if len(recent) == SMOOTHING_FRAMES and len(set(recent)) == 1 else None
 
-        self._history.append(raw)
+        # ── Right hand: STOP_ROTATION (immediate), pointing, or wrist-tilt ───
+        if right_lm is None:
+            self._right_neutral_angle = None
+            self._right_history.append(None)
+            right_cmd = None
+        else:
+            if _is_fist(right_lm):
+                current = _knuckle_axis_angle(right_lm)
+                if self._right_neutral_angle is None:   # first fist frame: capture neutral
+                    self._right_neutral_angle = current
+                    right_raw = None
+                else:
+                    right_raw = _classify_tilt(current, self._right_neutral_angle)
+            else:
+                self._right_neutral_angle = None        # fist released: reset neutral
+                right_raw = _classify_right_static(right_lm)
 
-        n = ROTATION_SMOOTHING_FRAMES if raw in _ROTATION_COMMANDS else SMOOTHING_FRAMES
-        recent = list(self._history)[-n:]
-        if len(recent) == n and len(set(recent)) == 1:
-            return recent[0]
-        return None
+            self._right_history.append(right_raw)
+
+            if right_raw == Command.STOP_ROTATION:      # immediate
+                right_cmd = Command.STOP_ROTATION
+            else:
+                n = ROTATION_SMOOTHING_FRAMES if right_raw in _ROTATION_COMMANDS else SMOOTHING_FRAMES
+                recent = list(self._right_history)[-n:]
+                right_cmd = recent[0] if len(recent) == n and len(set(recent)) == 1 else None
+
+        return left_cmd, right_cmd
 
     def close(self) -> None:
         self._landmarker.close()
@@ -264,15 +320,22 @@ def run(camera_index: int = 0) -> None:
                 break
 
             frame = cv2.flip(frame, 1)
-            command = detector.detect(frame)
+            left_cmd, right_cmd = detector.detect(frame)
 
-            if command is not None:
-                sender.send(command)
+            if left_cmd is not None:
+                sender.send_movement(left_cmd)
+            if right_cmd is not None:
+                sender.send_rotation(right_cmd)
 
-            label = command.value if command else "—"
+            left_label  = left_cmd.value  if left_cmd  else "—"
+            right_label = right_cmd.value if right_cmd else "—"
             cv2.putText(
-                frame, label, (10, 45),
-                cv2.FONT_HERSHEY_SIMPLEX, 1.4, (0, 220, 0), 2, cv2.LINE_AA,
+                frame, f"L: {left_label}", (10, 45),
+                cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 220, 0), 2, cv2.LINE_AA,
+            )
+            cv2.putText(
+                frame, f"R: {right_label}", (10, 90),
+                cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 200, 255), 2, cv2.LINE_AA,
             )
             cv2.imshow("Gesture Detector", frame)
 

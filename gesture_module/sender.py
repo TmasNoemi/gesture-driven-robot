@@ -7,7 +7,7 @@ import time
 import websocket
 from dotenv import load_dotenv
 
-from shared.commands import Command
+from shared.commands import Command, TOPIC_MOVEMENT, TOPIC_ROTATION
 
 load_dotenv()
 
@@ -28,6 +28,18 @@ _ADVERTISE_MSG = json.dumps({
     "op": "advertise",
     "topic": TOPIC,
     "type": TOPIC_TYPE,
+})
+
+_ADV_MOVEMENT = json.dumps({
+    "op": "advertise",
+    "topic": TOPIC_MOVEMENT,
+    "type": "std_msgs/String",
+})
+
+_ADV_ROTATION = json.dumps({
+    "op": "advertise",
+    "topic": TOPIC_ROTATION,
+    "type": "std_msgs/String",
 })
 
 
@@ -54,6 +66,8 @@ class GestureSender:
                 ws.connect(self._url, timeout=5)
                 print(f"[GestureSender] Connected to ROSBridge at {self._url}")
                 ws.send(_ADVERTISE_MSG)
+                ws.send(_ADV_MOVEMENT)
+                ws.send(_ADV_ROTATION)
 
                 while True:
                     msg = self._queue.get()     # blocks until a message is ready
@@ -86,6 +100,30 @@ class GestureSender:
             self._queue.put_nowait(msg)
         except queue.Full:
             pass    # video loop must never block on a network operation
+
+    def send_movement(self, command: Command) -> None:
+        """Publish a left-hand movement command to /gesture_movement."""
+        msg = json.dumps({
+            "op": "publish",
+            "topic": TOPIC_MOVEMENT,
+            "msg": {"data": command.value},
+        })
+        try:
+            self._queue.put_nowait(msg)
+        except queue.Full:
+            pass
+
+    def send_rotation(self, command: Command) -> None:
+        """Publish a right-hand rotation command to /gesture_rotation."""
+        msg = json.dumps({
+            "op": "publish",
+            "topic": TOPIC_ROTATION,
+            "msg": {"data": command.value},
+        })
+        try:
+            self._queue.put_nowait(msg)
+        except queue.Full:
+            pass
 
     def close(self) -> None:
         pass    # daemon thread exits with the main process

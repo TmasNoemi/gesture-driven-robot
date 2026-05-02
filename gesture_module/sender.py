@@ -1,23 +1,26 @@
 import json
+import os
 import queue
 import threading
 import time
 
 import websocket
+from dotenv import load_dotenv
 
 from shared.commands import Command
 
+load_dotenv()
+
 # ── Configuration ─────────────────────────────────────────────────────────────
 
-ROBOT_IP: str = "localhost"
-ROSBRIDGE_PORT: int = 9090
+ROBOT_IP: str = os.getenv("ROBOT_IP", "127.0.0.1")
+ROSBRIDGE_PORT: int = int(os.getenv("ROSBRIDGE_PORT", "9090"))
 ROSBRIDGE_URL: str = f"ws://{ROBOT_IP}:{ROSBRIDGE_PORT}"
 
-TOPIC: str = "/gesture_cmd"
-TOPIC_TYPE: str = "std_msgs/String"
+TOPIC: str = os.getenv("TOPIC", "/gesture_cmd")
+TOPIC_TYPE: str = os.getenv("TOPIC_TYPE", "std_msgs/String")
 
-# Seconds to wait before a reconnection attempt after a failure.
-RECONNECT_DELAY: float = 3.0
+RECONNECT_DELAY: float = float(os.getenv("RECONNECT_DELAY", "3.0"))
 
 # ─────────────────────────────────────────────────────────────────────────────
 

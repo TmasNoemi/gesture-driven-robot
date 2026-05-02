@@ -8,4 +8,5 @@ dependencies = [
     "mediapipe>=0.10.35",
     "opencv-python>=4.13.0.92",
     "websocket-client>=1.8.0",
+    "python-dotenv>=1.0.0",
 ]

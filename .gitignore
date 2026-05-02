@@ -40,3 +40,5 @@ robot_module/ros2_ws/log/
 # ── MediaPipe / OpenCV cache ───────────────────────────────────────────────
 gesture_module/__pycache__/*
 *.tflite
+gesture_module/__pycache__/detector.cpython-311.pyc
+shared/__pycache__/commands.cpython-311.pyc
